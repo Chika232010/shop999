@@ -1,25 +1,35 @@
-from django.shortcuts import render, get_object_or_404
-from .models import Category,Product
+from django.shortcuts import render, redirect,get_object_or_404
+from django.contrib.auth.decorators import login_required
+from .models import Cart, CartItem
+from shop.models import Product
 
-# Create your views here.
-def product_list(request, category_slug=None):
-    category = None
-    categories = Category.objects.all()
-    products = Product.objects.filter(available=True)
+def viev_cart(request):
+    cart, created = Cart.objects.get_or_create(user=request.user)
+    items = CartItem.objects.filter(cart=cart)
+    total = sum(item.subtotal() for item in items)
+    return render(request, 'cart.html', {'items':items , 'total':total})
 
-    if category_slug:
-        category = get_object_or_404(Category, slug=category_slug)
-        products = products.filter(category=category)
+@login_required
+def add_to_cart(request, product_id):
+    product = get_object_or_404(Product, id=product_id)
+    cart, created = Cart.objects.get_or_create(user=request.user)
+    cart_item, created =CartItem.objects.get_or_create(cart=cart, product=product)
+    cart_item.quantity += 1
+    cart_item.save()
+    return redirect('viev_cart')
 
-    return render(request, 'list_shop.html', {
-        'category': category,
-        'categories': categories,
-        'products': products
-    })
+@login_required
+def updatea_cart(request, product_id):
+    cart = get_object_or_404(Cart, user=request.user)
+    cart_item = get_object_or_404(CartItem, cart=cart, product_id=product_id)
+    if 'quantity' in request.POST:
+        cart_item.quantity = int(request.POST['quantity'])
+        cart_item.save()
+    return redirect('viev_cart')
 
-
-def product_detail(request, id, slug):
-
-    product = get_object_or_404(Product, id=id, slug=slug, available=True)
-
-    return render(request, 'detail.html', {'product': product})
+@login_required
+def remove_from_cart(request, product_id):
+    cart = get_object_or_404(Cart, user=request.user)
+    cart_item = get_object_or_404(CartItem, cart=cart, product_id=product_id)
+    cart_item.delete()
+    return redirect('viev_cart')
